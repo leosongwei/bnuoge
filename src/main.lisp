@@ -1,3 +1,236 @@
 ;;;; -*- Lisp -*-
+;;; LeoBlog
 ;;; Author: Leo.Song
 ;;; Email: leo_songwei@126.com
+
+;;; Package {{{
+(in-package :cl-user)
+
+(defpackage :leoblog
+  (:use :common-lisp))
+
+(in-package :leoblog)
+(require :hunchentoot)
+(require :html-template)
+(require :postmodern)
+;;; }}}
+
+;;; Data Structures {{{
+
+; Blog's name, string, <=50 chars
+(defparameter *blog-name* "Unnamed Blog")
+; Blog's subtitle, <= 200 chars
+(defparameter *blog-subtitle* "NULL")
+; Blog's describe, string,
+(defparameter *blog-describe* "NULL")
+
+(defstruct article
+  ; Article id, int
+  aid
+  ; Title, string.
+  title
+  ; Body, string.
+  body
+  ; Tags, string."T1,T2,T3..."
+  tags
+  ; Date, string."yyyy-mm-dd"
+  date
+  ; Time, string."hh:mm:ss"
+  time
+  ; URL part, string. ONLY alphanumeric and "-"
+  url
+)
+
+(defstruct reply
+  ; Reply id, int
+  rid
+  ; Related aid
+  aid
+  ; Name, string, UTF-8 & alphanumeric chars & "-" and "@" and "_" and "."
+  name
+  ; E-mail, string
+  email
+  ; Website, string
+  website
+  ; Date and time, same as which in article
+  date
+  time
+  ; body , string
+  body
+)
+;;; }}}
+
+;;; Database Operations {{{
+(postmodern:connect-toplevel *db-name* *db-user* *db-passwd* *db-location*)
+
+(defun save-article-db (&key title body tags url)
+  (postmodern:query (:insert-into 'article :set
+                     'title '$1     'body '$2
+                     'tags  '$3     'date '$4
+                     'time  '$5     'url  '$6)
+                    title body tags
+                    (get-yy-mm-dd-date)
+                    (get-hh-mm-ss-time)
+                    url))
+
+(defun save-reply-db (&key aid name email website body)
+  (postmodern:query (:insert-into 'reply :set
+                     'aid   '$1     'name    '$2
+                     'email '$3     'website '$4
+                     'date  '$5     'time    '$6
+                     'body  '$7)
+                    aid name email website
+                    (get-yy-mm-dd-date)
+                    (get-hh-mm-ss-time)
+                    body))
+
+; Get article with url, list with 1 article
+(defun get-article-url-db (url)
+  (car
+    (postmodern:query (:select '* :from 'article :where
+                     (:= :url '$1)) url)))
+
+; Get article with aid, list with 1 article
+(defun get-article-aid-db (aid)
+  (car
+    (postmodern:query (:select '* :from 'article :where
+                       (:= :aid '$1)) aid)))
+
+; Get the last article's AID, number
+(defun get-last-article-aid ()
+  (caar (postmodern:query (:select (:max 'aid) :from 'article))))
+
+; Get all reply of a AID, list with list
+(defun get-reply-aid-db (aid)
+  (postmodern:query (:select '* :from 'reply :where
+                     (:= :aid '$1)) aid))
+
+; Get reply with rid, list
+(defun get-reply-rid-db (rid)
+  (car
+    (postmodern:query (:select '* :from 'reply :where
+                       (:= :rid '$1)) rid)))
+
+; Get article sequence reverse list
+(defun get-article-reverse-sequence-db (start amount)
+  (postmodern:query (:limit (:order-by
+                              (:select '* :from 'article)
+                              (:desc 'aid))
+                     '$1 '$2)
+                    amount start))
+
+; Get global reply sequence list
+(defun get-global-reply-reverse-sequence-db (start amount)
+  (postmodern:query (:limit (:order-by
+                              (:select '* :from 'reply)
+                              (:desc 'rid))
+                     '$1 '$2)
+                    amount start))
+
+; Delete Article with aid
+(defun delete-article-aid-db (aid)
+  (postmodern:query (:delete-from 'article :where
+                     (:= :aid '$1)) aid))
+
+; Delete Reply with rid
+(defun delete-reply-rid-db (rid)
+  (postmodern:query (:delete-from 'reply :where
+                     (:= :rid '$1)) rid))
+
+;;; }}}
+
+;;; HTML Generaters {{{
+(defun generate-index-page ()
+  (with-output-to-string (stream)
+    (html-template:fill-and-print-template
+      #P"index.tmpl"
+      (list :blog-name *blog-name*
+            :recent-article (loop for recent-article in
+                                  (mapcar #'fill-article-struct
+                                          (get-article-reverse-sequence-db 0 5))
+                                  collect
+                                  (list :title-cut (cut-string (article-title recent-article) 10)))
+            :recent-reply (loop for recent-reply in
+                                (mapcar #'fill-reply-struct
+                                        (get-global-reply-reverse-sequence-db 0 5))
+                                collect
+                                (list :name (cut-string (reply-name recent-reply) 8)
+                                      :body-cut (cut-string (reply-body recent-reply) 10)))
+            :article-list (loop for article-list in
+                                (mapcar #'fill-article-struct
+                                        (get-article-reverse-sequence-db 0 10))
+                                collect
+                                (list :title (article-title article-list)
+                                      :body-cut (cut-string (article-body article-list) 200)
+                                      :date (article-date article-list)
+                                      :time (article-time article-list)))))))
+;;; }}}
+
+;;; Tools {{{
+(defun get-yy-mm-dd-date ()
+  (let* ((decoded-time (multiple-value-list (get-decoded-time)))
+    (y (write-to-string (sixth decoded-time)))
+    (m (write-to-string (fifth decoded-time)))
+    (d (write-to-string (fourth decoded-time))))
+    (concatenate 'string y "-" m "-" d)))
+
+(defun get-hh-mm-ss-time ()
+  (let* ((decoded-time (multiple-value-list (get-decoded-time)))
+    (h (write-to-string (third decoded-time)))
+    (m (write-to-string (second decoded-time)))
+    (s (write-to-string (first decoded-time))))
+    (concatenate 'string h ":" m ":" s)))
+
+(defun make-url-part (title)
+  (string-downcase
+    (delete-if #'(lambda (x)
+                   (not (or (alphanumericp x)
+                            (char= #\- x))))
+               (substitute #\- #\SPACE title))))
+
+(defun fill-article-struct (list-article)
+  (make-article
+    :aid (first list-article)
+    :title (second list-article)
+    :body (third list-article)
+    :tags (fourth list-article)
+    :date (fifth list-article)
+    :time (sixth list-article)
+    :url (seventh list-article)))
+
+(defun fill-reply-struct (list-reply)
+  (make-reply
+    :rid (first list-reply)
+    :aid (second list-reply)
+    :name (third list-reply)
+    :email (fourth list-reply)
+    :website (fifth list-reply)
+    :date (sixth list-reply)
+    :time (seventh list-reply)
+    :body (eighth list-reply)))
+
+(defun articlep (article)
+  (article-aid article))
+
+(defun cut-string (string-to-cut preserve)
+  (cond ((> preserve (length string-to-cut)) string-to-cut)
+        (T (subseq string-to-cut 0 preserve))))
+;  (subseq string-to-cut 0 preserve))
+;;; }}}
+
+;;; Configure {{{
+; User-name, string, alphanumeric & "_" & "-". <= 50 chars.
+(defparameter *user-name* "Leo_Song")
+; Passwd, string, <= 128 chars.
+; Will be check with md5sum in the future.
+(defparameter *passwd* "a")
+
+; PostgreSQL database name
+(defparameter *db-name* "leoblog")
+; PostgreSQL database user
+(defparameter *db-user* "leo")
+; PostgreSQL database passwd
+(defparameter *db-passwd* "d41d8cd")
+; PostgreSQL database location
+(defparameter *db-location* "localhost")
+;;; }}}

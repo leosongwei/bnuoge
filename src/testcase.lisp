@@ -14,3 +14,10 @@
   :email "ombama@whitehouse.gov"
   :website ""
   :body "LOL")
+
+;Works
+(loop for blog-post in (mapcar #'fill-article-struct (get-article-reverse-sequence-db 0 5))
+      collect (list :title (article-title blog-post)
+                    :body (cut-string  (article-body blog-post) 50)))
+
+
