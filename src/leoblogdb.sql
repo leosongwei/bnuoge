@@ -4,9 +4,8 @@ CREATE TABLE article (
 	title varchar NOT NULL,
 	body varchar NOT NULL,
 	tags varchar,
-	date date NOT NULL,
-	time time NOT NULL,
-	url varchar NOT NULL UNIQUE,
+	date timestamp NOT NULL,
+	url varchar NOT NULL UNIQUE
 );
 
 -- REPLY --
@@ -16,7 +15,6 @@ CREATE TABLE reply (
 	name varchar NOT NULL,
 	email varchar NOT NULL,
 	website varchar,
-	date date NOT NULL,
-	time time NOT NULL,
+	date timestamp NOT NULL,
 	body varchar
 );

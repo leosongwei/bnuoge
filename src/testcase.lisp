@@ -2,10 +2,10 @@
 
 ;(defun save-article-db (&key title body tags url)
 (save-article-db
-  :title "Test Case3"
+  :title "Timestamp test2"
   :body "For testing usage"
-  :tags "Test"
-  :url "test-case3")
+  :tags "timestamp"
+  :url "timestamp-test2")
 
 ;(defun save-reply-db (&key aid name email website body)
 (save-reply-db
