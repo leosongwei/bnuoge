@@ -185,8 +185,11 @@
 
 (defun cut-string (string-to-cut preserve)
   (cond ((> preserve (length string-to-cut)) string-to-cut)
-        (T (subseq string-to-cut 0 preserve))))
-;  (subseq string-to-cut 0 preserve))
+        (T
+         (concatenate 'string
+                      (subseq string-to-cut 0 preserve)
+                      ; Any more elegant way instead of just add "..."?
+                      "..."))))
 ;;; }}}
 
 ;;; Configure {{{
