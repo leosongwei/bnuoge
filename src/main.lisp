@@ -33,7 +33,7 @@
   body
   ; Tags, string."T1,T2,T3..."
   tags
-  ; Date, string. Unix universal date.
+  ; Date, string. Unix universal date. UTC
   date
   ; URL part, string. ONLY alphanumeric and "-"
   url
@@ -50,7 +50,7 @@
   email
   ; Website, string
   website
-  ; Date, Unix universal date.
+  ; Date, Unix universal date. UTC
   date
   ; body , string
   body
@@ -59,54 +59,85 @@
 
 ;;; HTML Generaters {{{
 (defun generate-index-page ()
-  (with-output-to-string (stream)
-    (html-template:fill-and-print-template
-      #P"index.tmpl"
-      (list :blog-name *blog-name*
-            :recent-article (loop for recent-article in
-                                  (mapcar #'fill-article-struct
-                                          (get-article-reverse-sequence-db 0 5))
+  (let ((recent-article-title-cut 20)
+        (recent-reply-name-cut 10)
+        (recent-reply-body-cut 20)
+        (article-list-body-cut 200))
+    (with-output-to-string (stream)
+      (html-template:fill-and-print-template
+        #P"index.tmpl"
+        (list :blog-name *blog-name*
+              :recent-article (loop for recent-article in
+                                    (mapcar #'fill-article-struct
+                                            (get-article-reverse-sequence-db 0 5))
+                                    collect
+                                    (list :title-cut (cut-string (article-title recent-article)
+                                                                 recent-article-title-cut)))
+              :recent-reply (loop for recent-reply in
+                                  (mapcar #'fill-reply-struct
+                                          (get-global-reply-reverse-sequence-db 0 5))
                                   collect
-                                  (list :title-cut (cut-string (article-title recent-article) 10)))
-            :recent-reply (loop for recent-reply in
-                                (mapcar #'fill-reply-struct
-                                        (get-global-reply-reverse-sequence-db 0 5))
-                                collect
-                                (list :name (cut-string (reply-name recent-reply) 8)
-                                      :body-cut (cut-string (reply-body recent-reply) 10)))
-            :article-list (loop for article-list in
-                                (mapcar #'fill-article-struct
-                                        (get-article-reverse-sequence-db 0 10))
-                                collect
+                                  (list :name (cut-string (reply-name recent-reply)
+                                                          recent-reply-name-cut)
+                                        :body-cut (cut-string (reply-body recent-reply)
+                                                              recent-reply-body-cut)))
+              :article-list (loop for article-list in
+                                  (mapcar #'fill-article-struct
+                                          (get-article-reverse-sequence-db 0 10))
+                                  collect
                                 (list :title (article-title article-list)
-                                      :body-cut (cut-string (article-body article-list) 200)
+                                      :body-cut (cut-string (article-body article-list)
+                                                            article-list-body-cut)
                                       :date (get-yy-mm-dd-date (article-date article-list))
                                       :time (get-hh-mm-ss-time (article-date article-list)))))
-      :stream stream)))
+      :stream stream))))
 ;;; }}}
 
 ;;; Tools {{{
+
+(defun get-utc-timestamp ()
+  (let* ((local-universal-time (get-universal-time))
+         (timezone (ninth (multiple-value-list (decode-universal-time local-universal-time)))))
+    (+ local-universal-time (* 3600 timezone))))
+
 (defun get-yy-mm-dd-date (universal-time)
   (let* ((decoded-time (multiple-value-list (decode-universal-time universal-time)))
-    (y (write-to-string (sixth decoded-time)))
-    (m (write-to-string (fifth decoded-time)))
-    (d (write-to-string (fourth decoded-time))))
+    (y (format nil "~4,'0D" (sixth decoded-time)))
+    (m (format nil "~2,'0D" (fifth decoded-time)))
+    (d (format nil "~2,'0D" (fourth decoded-time))))
     (concatenate 'string y "-" m "-" d)))
 
 (defun get-hh-mm-ss-time (universal-time)
   (let* ((decoded-time (multiple-value-list (decode-universal-time universal-time)))
-    (h (write-to-string (third decoded-time)))
-    (m (write-to-string (second decoded-time)))
-    (s (write-to-string (first decoded-time))))
+    (h (format nil "~2,'0D" (third decoded-time)))
+    (m (format nil "~2,'0D" (second decoded-time)))
+    (s (format nil "~2,'0D" (first decoded-time))))
     (concatenate 'string h ":" m ":" s)))
 
+
 (defun get-date ()
+  "Local time and timezone. Example: 2013-08-23 11:16:53+08"
   (let ((universal-time (get-universal-time)))
     (concatenate 'string
                  (get-yy-mm-dd-date universal-time)
                  " "
                  (get-hh-mm-ss-time universal-time)
-                 (write-to-string (ninth (multiple-value-list (get-decoded-time)))))))
+                 (let ((timezone (ninth (multiple-value-list (get-decoded-time)))))
+                   (cond ((< timezone 0) (concatenate 'string "+"
+                                                      (format nil "~2,'0D"
+                                                              (abs timezone))))
+                         ((> timezone 0) (concatenate 'string "-"
+                                                      (format nil "~2,'0D"
+                                                              (abs timezone)))))))))
+
+(defun get-utc-date ()
+  "UTC time, example: 2013-08-23 03:19:21 UTC"
+  (let ((universal-utc-time (get-utc-timestamp)))
+    (concatenate 'string
+                 (get-yy-mm-dd-date universal-utc-time)
+                 " "
+                 (get-hh-mm-ss-time universal-utc-time)
+                 " UTC")))
 
 (defun make-url-part (title)
   (string-downcase
@@ -169,7 +200,7 @@
                      'tags  '$3     'date '$4
                      'url  '$5)
                     title body tags
-                    (get-date)
+                    (get-utc-date)
                     url))
 
 (defun save-reply-db (&key aid name email website body)
@@ -178,7 +209,7 @@
                      'email '$3     'website '$4
                      'date  '$5     'body  '$6)
                     aid name email website
-                    (get-date)
+                    (get-utc-date)
                     body))
 
 ; Get article with url, list with 1 article
