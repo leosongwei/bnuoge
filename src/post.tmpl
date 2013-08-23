@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title><!-- TMPL_VAR blog-name --></title>
+  </head>
+  <body>
+    <div id="navy-panel">
+      <h1 id="blog-name"><a href="/"><!-- TMPL_VAR blog-name --></a></h1>
+      <ul id="recent-article">
+        <!-- TMPL_LOOP recent-article -->
+        <li><a href="/p?page=<!-- TMPL_VAR url -->"><!-- TMPL_VAR title-cut --></a></li>
+        <!-- /TMPL_LOOP -->
+      </ul>
+      <ul id="recent-reply">
+        <!-- TMPL_LOOP recent-reply -->
+        <li><!-- TMPL_VAR name -->:<!-- TMPL_VAR body-cut --></li>
+        <!-- /TMPL_LOOP -->
+      </ul>
+    </div>
+
+    <div id="content">
+      <div id="article">
+        <h1><!-- TMPL_VAR article-title --></h1>
+        <div id="body">
+          <!-- TMPL_VAR article-body -->
+        </div>
+        <!-- TMPL_VAR article-date -->
+        <!-- TMPL_VAR article-time -->
+      </div>
+      <div id="reply">
+        <ul>
+          <!-- TMPL_LOOP reply-list -->
+          <li><!-- TMPL_VAR name -->:<!-- TMPL_VAR body --></li>
+          <!-- /TMPL_LOOP -->
+        </ul>
+      </div>
+    </div>
+
+  </body>
+</html>

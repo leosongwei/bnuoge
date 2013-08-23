@@ -71,7 +71,9 @@
         (mapcar #'fill-article-struct
                 (get-article-reverse-sequence-db 0 5))
         collect
-        (list :title-cut (cut-string (article-title recent-article)
+        (list
+          :url (article-url recent-article)
+          :title-cut (cut-string (article-title recent-article)
                                      *recent-article-title-cut*))))
 
 (defun get-recent-replys ()
@@ -90,10 +92,21 @@
                 (get-article-reverse-sequence-db 0 50))
         collect
         (list :title (article-title article-list)
+              :url (article-url article-list)
               :body-cut (cut-string (article-body article-list)
                                     *article-list-body-cut*)
               :date (get-yy-mm-dd-date (article-date article-list))
               :time (get-hh-mm-ss-time (article-date article-list)))))
+
+(defun get-reply-list (aid)
+  (loop for reply-list in
+        (mapcar #'fill-reply-struct
+                (get-reply-aid-db aid))
+        collect
+        (list :name (reply-name reply-list)
+              :body (reply-body reply-list)
+              :date (get-yy-mm-dd-date (reply-date reply-list))
+              :time (get-hh-mm-ss-time (reply-date reply-list)))))
 
 (defun generate-index-page ()
   (with-output-to-string (stream)
@@ -105,6 +118,20 @@
              :article-list (get-article-list))
      :stream stream)))
 
+(defun generate-post-page (url)
+  (with-output-to-string (stream)
+    (html-template:fill-and-print-template
+      #P"post.tmpl"
+      (let ((article (fill-article-struct (get-article-url-db url))))
+        (list :blog-name *blog-name*
+              :recent-article (get-recent-articles)
+              :recent-reply (get-recent-replys)
+              :article-title (article-title article)
+              :article-body (article-body article)
+              :article-date (get-yy-mm-dd-date (article-date article))
+              :article-time (get-hh-mm-ss-time (article-date article))
+              :reply-list (get-reply-list (get-aid-with-url url))))
+      :stream stream)))
 
 ;;; }}}
 
@@ -273,6 +300,11 @@
                      '$1 '$2)
                     amount start))
 
+(defun get-aid-with-url (url)
+  (car (car
+         (postmodern:query (:select 'aid :from 'article
+                     :where (:= :url '$1)) url))))
+
 ; Delete Article with aid
 (defun delete-article-aid-db (aid)
   (postmodern:query (:delete-from 'article :where
@@ -294,4 +326,8 @@
 (hunchentoot:define-easy-handler (index-page :uri "/") ()
   (setf (hunchentoot:content-type*) "html")
   (generate-index-page))
+
+(hunchentoot:define-easy-handler (post-page :uri "/p") (page)
+  (setf (hunchentoot:content-type*) "html")
+  (generate-post-page (make-url-part page)))
 ;;; }}}
