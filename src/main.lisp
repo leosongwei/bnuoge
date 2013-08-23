@@ -58,39 +58,54 @@
 ;;; }}}
 
 ;;; HTML Generaters {{{
+
+; html configs {{{
+(defparameter *recent-article-title-cut* 20)
+(defparameter *recent-reply-name-cut* 10)
+(defparameter *recent-reply-body-cut* 20)
+(defparameter *article-list-body-cut* 200)
+; }}}
+
+(defun get-recent-articles ()
+  (loop for recent-article in
+        (mapcar #'fill-article-struct
+                (get-article-reverse-sequence-db 0 5))
+        collect
+        (list :title-cut (cut-string (article-title recent-article)
+                                     *recent-article-title-cut*))))
+
+(defun get-recent-replys ()
+  (loop for recent-reply in
+        (mapcar #'fill-reply-struct
+                (get-global-reply-reverse-sequence-db 0 5))
+        collect
+        (list :name (cut-string (reply-name recent-reply)
+                                *recent-reply-name-cut*)
+              :body-cut (cut-string (reply-body recent-reply)
+                                    *recent-reply-body-cut*))))
+
+(defun get-article-list ()
+  (loop for article-list in
+        (mapcar #'fill-article-struct
+                (get-article-reverse-sequence-db 0 50))
+        collect
+        (list :title (article-title article-list)
+              :body-cut (cut-string (article-body article-list)
+                                    *article-list-body-cut*)
+              :date (get-yy-mm-dd-date (article-date article-list))
+              :time (get-hh-mm-ss-time (article-date article-list)))))
+
 (defun generate-index-page ()
-  (let ((recent-article-title-cut 20)
-        (recent-reply-name-cut 10)
-        (recent-reply-body-cut 20)
-        (article-list-body-cut 200))
-    (with-output-to-string (stream)
-      (html-template:fill-and-print-template
-        #P"index.tmpl"
-        (list :blog-name *blog-name*
-              :recent-article (loop for recent-article in
-                                    (mapcar #'fill-article-struct
-                                            (get-article-reverse-sequence-db 0 5))
-                                    collect
-                                    (list :title-cut (cut-string (article-title recent-article)
-                                                                 recent-article-title-cut)))
-              :recent-reply (loop for recent-reply in
-                                  (mapcar #'fill-reply-struct
-                                          (get-global-reply-reverse-sequence-db 0 5))
-                                  collect
-                                  (list :name (cut-string (reply-name recent-reply)
-                                                          recent-reply-name-cut)
-                                        :body-cut (cut-string (reply-body recent-reply)
-                                                              recent-reply-body-cut)))
-              :article-list (loop for article-list in
-                                  (mapcar #'fill-article-struct
-                                          (get-article-reverse-sequence-db 0 10))
-                                  collect
-                                (list :title (article-title article-list)
-                                      :body-cut (cut-string (article-body article-list)
-                                                            article-list-body-cut)
-                                      :date (get-yy-mm-dd-date (article-date article-list))
-                                      :time (get-hh-mm-ss-time (article-date article-list)))))
-      :stream stream))))
+  (with-output-to-string (stream)
+     (html-template:fill-and-print-template
+       #P"index.tmpl"
+       (list :blog-name *blog-name*
+             :recent-article (get-recent-articles)
+             :recent-reply (get-recent-replys)
+             :article-list (get-article-list))
+     :stream stream)))
+
+
 ;;; }}}
 
 ;;; Tools {{{

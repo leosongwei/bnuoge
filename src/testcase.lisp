@@ -50,3 +50,7 @@
                " "
                (get-hh-mm-ss-time universal-utc-time)
                " UTC"))
+
+(defun convert-number (n h)
+  (let ((ctl (format nil "~A~A~A" "~" h ",'0D")))
+    (format nil ctl n)))
