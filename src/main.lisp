@@ -440,7 +440,7 @@
 ;;; }}}
 
 ;;; Hunchentoot Server {{{
-(defvar *ht-server*
+(defun start-server ()
   (hunchentoot:start (make-instance
                        'hunchentoot:easy-acceptor
                        :port 8080)))
@@ -458,3 +458,5 @@
 ;; }}}
 
 ;;; }}}
+
+(start-sever)
