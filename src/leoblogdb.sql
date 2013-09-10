@@ -47,5 +47,6 @@ CREATE TABLE log (
 	ip varchar(255) NOT NULL,
 	time timestamp NOT NULL,
 	useragent varchar(255),
+	request varchar NOT NULL,
 	adminp boolean NOT NULL
 );

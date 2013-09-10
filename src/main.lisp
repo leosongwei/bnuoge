@@ -103,22 +103,28 @@
          (ip (hunchentoot:real-remote-addr))
          (now-time (get-utc-timestamp))
          (useragent (hunchentoot:user-agent))
+         (request (concatenate 'string
+                             (write-to-string (hunchentoot:request-method*))
+                             " "
+                             (write-to-string (hunchentoot:request-uri*))
+                             " "
+                             (write-to-string (hunchentoot:return-code*))))
          (adminp (adminp-db cookie)))
     ; Warning : the **sequence** of this cond is carefully designed.
     (cond ((adminp-db cookie)
            ; This will allow us to automatdafsc renew the admin cookie
-           (log-db cookie ip now-time useragent adminp))
+           (log-db cookie ip now-time useragent request adminp))
           ((not (cookiep-db cookie))
            (let ((cookie nil))
               (log-db cookie ip
                       (format-utc-date now-time)
-                      useragent adminp)
+                      useragent request adminp)
               (give-visit-cookie ip now-time useragent)
               (setf *run* 1)))
           ((cookiep-db cookie)
            (log-db cookie ip
                    (format-utc-date now-time)
-                   useragent adminp)))))
+                   useragent request adminp)))))
 
 (defparameter *run?* nil)
 
@@ -133,7 +139,7 @@
                             :expires (+ *visit-cookie-timeout* now-time))
     (log-db cookie ip
             (format-utc-date now-time)
-            useragent adminp)))
+            useragent request adminp)))
 
 ; Give Admin Cookie
 (defun give-admin-cookie (ip now-time useragent)
@@ -146,7 +152,7 @@
                                 :expire (+ *admin-cookie-timeout* now-time))
         (log-db cookie ip
                 (format-utc-date now-time)
-                useragent adminp))))
+                useragent request adminp))))
 
 ;;; }}}
 
@@ -226,13 +232,15 @@
         #P"post.tmpl"
         (let ((article (fill-article-struct (get-article-url-db url))))
           (list :navy-panel (generate-navy-panel)
+                ;----------------------------
                 :article-title (article-title article)
                 :article-body (article-body article)
                 :article-date (get-yy-mm-dd-date (article-date article))
                 :article-time (get-hh-mm-ss-time (article-date article))
-                :reply-list (get-reply-list (get-aid-with-url url))))
+                :reply-list (get-reply-list (get-aid-with-url url))
+                ;----------------------------
+                ))
         :stream stream))))
-
 ;;; }}}
 
 ;;; Tools {{{
@@ -404,12 +412,12 @@
                      (:= :rid '$1)) rid))
 
 ; Logging to Database
-(defun log-db (cookie ip now-time useragent adminp)
+(defun log-db (cookie ip now-time useragent request adminp)
   (postmodern:query (:insert-into 'log :set
-                     'cookie '$1    'ip '$2
-                     'time   '$3    'useragent '$4
-                     'adminp '$5)
-                    cookie ip now-time useragent adminp))
+                     'cookie  '$1    'ip '$2
+                     'time    '$3    'useragent '$4
+                     'request '$5    'adminp '$6)
+                    cookie ip now-time useragent request adminp))
 
 ; Admin Valid?
 (defun adminp-db (cookie)
@@ -439,31 +447,15 @@
                        'hunchentoot:easy-acceptor
                        :port 8080)))
 
-
 ;; Easy handler {{{
-;(defparameter lastua nil)
-;(defparameter lastip nil)
-;(defparameter lastrequest nil)
-;(defparameter lastcookie nil)
-;(hunchentoot:define-easy-handler (index-page :uri "/") ()
-;  (setf (hunchentoot:content-type*) "html")
-;  (hunchentoot:set-cookie "card"
-;                          :value (write-to-string (get-universal-time))
-;                          :expires (+ 20 (get-universal-time)))
-;  (setf lastua (hunchentoot:user-agent))
-;  (setf lastip (hunchentoot:real-remote-addr))
-;  (setf lastrequest (hunchentoot:request-uri*))
-;  (setf lastcookie (hunchentoot:cookie-in "token"))
-;  (generate-index-page))
-
 (hunchentoot:define-easy-handler (index-page :uri "/") ()
   (setf (hunchentoot:content-type*) "html")
   (access-management)
   (generate-index-page))
 
-
 (hunchentoot:define-easy-handler (post-page :uri "/p") (page)
   (setf (hunchentoot:content-type*) "html")
+  (access-management)
   (generate-post-page (make-url-part page)))
 ;; }}}
 
