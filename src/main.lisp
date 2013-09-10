@@ -57,6 +57,99 @@
 )
 ;;; }}}
 
+;;; Service {{{
+(defun make-url-part (title)
+  (string-downcase
+    (delete-if #'(lambda (x)
+                   (not (or (alphanumericp x)
+                            (char= #\- x))))
+               (substitute #\- #\SPACE title))))
+
+(defun fill-article-struct (list-article)
+  (make-article
+    :aid (first list-article)
+    :title (second list-article)
+    :body (third list-article)
+    :tags (fourth list-article)
+    :date (fifth list-article)
+    :url (sixth list-article)))
+
+(defun fill-reply-struct (list-reply)
+  (make-reply
+    :rid (first list-reply)
+    :aid (second list-reply)
+    :name (third list-reply)
+    :email (fourth list-reply)
+    :website (fifth list-reply)
+    :date (sixth list-reply)
+    :body (seventh list-reply)))
+
+(defun articlep (article)
+  (article-aid article))
+
+(defun cut-string (string-to-cut preserve)
+  (cond ((> preserve (length string-to-cut)) string-to-cut)
+        (T
+         (concatenate 'string
+                      (subseq string-to-cut 0 preserve)
+                      ; Any more elegant way instead of just add "..."?
+                      "..."))))
+
+; access-management, logging and giving cookies.
+(defparameter *run* 0)
+(defun access-management ()
+  "access-management, logging and giving cookies."
+  (let* ((cookie (hunchentoot:cookie-in "card"))
+         (ip (hunchentoot:real-remote-addr))
+         (now-time (get-utc-timestamp))
+         (useragent (hunchentoot:user-agent))
+         (adminp (adminp-db cookie)))
+    ; Warning : the **sequence** of this cond is carefully designed.
+    (cond ((adminp-db cookie)
+           ; This will allow us to automatdafsc renew the admin cookie
+           (log-db cookie ip now-time useragent adminp))
+          ((not (cookiep-db cookie))
+           (let ((cookie nil))
+              (log-db cookie ip
+                      (format-utc-date now-time)
+                      useragent adminp)
+              (give-visit-cookie ip now-time useragent)
+              (setf *run* 1)))
+          ((cookiep-db cookie)
+           (log-db cookie ip
+                   (format-utc-date now-time)
+                   useragent adminp)))))
+
+(defparameter *run?* nil)
+
+; Give Visit Cookie
+(defun give-visit-cookie (ip now-time useragent)
+  (let ((cookie (concatenate 'string
+                             (write-to-string now-time)
+                             (write-to-string (random 100000000000000))))
+        (adminp nil))
+    (hunchentoot:set-cookie "card"
+                            :value cookie
+                            :expires (+ *visit-cookie-timeout* now-time))
+    (log-db cookie ip
+            (format-utc-date now-time)
+            useragent adminp)))
+
+; Give Admin Cookie
+(defun give-admin-cookie (ip now-time useragent)
+  (let ((cookie (concatenate 'string
+                             (write-to-string now-time)
+                             (write-to-string (random 100000000000000))))
+        (adminp t)
+        (hunchentoot:set-cookie "card"
+                                :value cookie
+                                :expire (+ *admin-cookie-timeout* now-time))
+        (log-db cookie ip
+                (format-utc-date now-time)
+                useragent adminp))))
+
+;;; }}}
+
 ;;; HTML Generaters {{{
 
 ; html configs {{{
@@ -107,6 +200,15 @@
               :body (reply-body reply-list)
               :date (get-yy-mm-dd-date (reply-date reply-list))
               :time (get-hh-mm-ss-time (reply-date reply-list)))))
+
+(defun generate-navy-panel ()
+  (with-output-to-string (stream)
+    (html-template:fill-and-print-template
+      #P"navy.tmpl"
+      (list :blog-name *blog-name*
+            :recent-article (get-recent-articles)
+            :recent-reply (get-recent-replys))
+      :stream stream)))
 
 (defun generate-index-page ()
   (with-output-to-string (stream)
@@ -172,7 +274,7 @@
                                                       (format nil "~2,'0D"
                                                               (abs timezone)))))))))
 
-(defun get-utc-date ()
+(defun get-formated-utc-date ()
   "UTC time, example: 2013-08-23 03:19:21 UTC"
   (let ((universal-utc-time (get-utc-timestamp)))
     (concatenate 'string
@@ -181,45 +283,19 @@
                  (get-hh-mm-ss-time universal-utc-time)
                  " UTC")))
 
-(defun make-url-part (title)
-  (string-downcase
-    (delete-if #'(lambda (x)
-                   (not (or (alphanumericp x)
-                            (char= #\- x))))
-               (substitute #\- #\SPACE title))))
-
-(defun fill-article-struct (list-article)
-  (make-article
-    :aid (first list-article)
-    :title (second list-article)
-    :body (third list-article)
-    :tags (fourth list-article)
-    :date (fifth list-article)
-    :url (sixth list-article)))
-
-(defun fill-reply-struct (list-reply)
-  (make-reply
-    :rid (first list-reply)
-    :aid (second list-reply)
-    :name (third list-reply)
-    :email (fourth list-reply)
-    :website (fifth list-reply)
-    :date (sixth list-reply)
-    :body (seventh list-reply)))
-
-(defun articlep (article)
-  (article-aid article))
-
-(defun cut-string (string-to-cut preserve)
-  (cond ((> preserve (length string-to-cut)) string-to-cut)
-        (T
-         (concatenate 'string
-                      (subseq string-to-cut 0 preserve)
-                      ; Any more elegant way instead of just add "..."?
-                      "..."))))
+(defun format-utc-date (universal-utc-time)
+  "Format UTC time, input UTC timestamp,output: 2013-08-23 03:19:21 UTC"
+  (concatenate 'string
+               (get-yy-mm-dd-date universal-utc-time)
+               " "
+               (get-hh-mm-ss-time universal-utc-time)
+               " UTC"))
 ;;; }}}
 
 ;;; Configure {{{
+; Blog settings
+(defparameter domain "127.0.0.1")
+
 ; User-name, string, alphanumeric & "_" & "-". <= 50 chars.
 (defparameter *user-name* "Leo_Song")
 ; Passwd, string, <= 128 chars.
@@ -234,6 +310,15 @@
 (defparameter *db-passwd* "d41d8cd")
 ; PostgreSQL database location
 (defparameter *db-location* "localhost")
+
+; Visit Cookie timeout, unit: Seconds
+(defparameter *visit-cookie-timeout* (* 3600 24))
+; Admin Cookie timeout, unit: Seconds
+(defparameter *admin-cookie-timeout* (* 3600 24 7))
+
+(defun f**k-internet-explorer ()
+  (cond ((search "MSIE" (hunchentoot:user-agent))
+         (hunchentoot:redirect ))))
 ;;; }}}
 
 ;;; Database Operations {{{
@@ -245,7 +330,7 @@
                      'tags  '$3     'date '$4
                      'url  '$5)
                     title body tags
-                    (get-utc-date)
+                    (get-formated-utc-date)
                     url))
 
 (defun save-reply-db (&key aid name email website body)
@@ -254,14 +339,19 @@
                      'email '$3     'website '$4
                      'date  '$5     'body  '$6)
                     aid name email website
-                    (get-utc-date)
+                    (get-formated-utc-date)
                     body))
 
 ; Get article with url, list with 1 article
 (defun get-article-url-db (url)
+  (postmodern:query (:update 'article
+                     :set 'click
+                     (:select (:+ 1 'click) :from 'article :where
+                           (:= 'url '$1))
+                        :where (:= :url '$1)) url)
   (car
     (postmodern:query (:select '* :from 'article :where
-                     (:= :url '$1)) url)))
+                       (:= :url '$1)) url)))
 
 ; Get article with aid, list with 1 article
 (defun get-article-aid-db (aid)
@@ -315,6 +405,34 @@
   (postmodern:query (:delete-from 'reply :where
                      (:= :rid '$1)) rid))
 
+; Logging to Database
+(defun log-db (cookie ip now-time useragent adminp)
+  (postmodern:query (:insert-into 'log :set
+                     'cookie '$1    'ip '$2
+                     'time   '$3    'useragent '$4
+                     'adminp '$5)
+                    cookie ip now-time useragent adminp))
+
+; Admin Valid?
+(defun adminp-db (cookie)
+  (let ((that-time (car (car
+                          (postmodern:query (:select 'time :from 'log :where
+                                             (:and
+                                               (:= 'cookie '$1)
+                                               (:= 'adminp t))) cookie)))))
+    (cond (that-time (> that-time
+                        (- (get-universal-time) *admin-cookie-timeout*)))
+          (t nil))))
+
+; Cookie Valid?
+(defun cookiep-db (cookie)
+  (let ((that-time (car (car
+                          (postmodern:query (:select 'time :from 'log :where
+                                             (:= 'cookie '$1)) cookie)))))
+    (cond ((null cookie) nil)
+          (that-time (> that-time
+                        (- (get-universal-time) *visit-cookie-timeout*)))
+          (t nil))))
 ;;; }}}
 
 ;;; Hunchentoot Server {{{
@@ -323,11 +441,32 @@
                        'hunchentoot:easy-acceptor
                        :port 8080)))
 
+
+;; Easy handler {{{
+;(defparameter lastua nil)
+;(defparameter lastip nil)
+;(defparameter lastrequest nil)
+;(defparameter lastcookie nil)
+;(hunchentoot:define-easy-handler (index-page :uri "/") ()
+;  (setf (hunchentoot:content-type*) "html")
+;  (hunchentoot:set-cookie "card"
+;                          :value (write-to-string (get-universal-time))
+;                          :expires (+ 20 (get-universal-time)))
+;  (setf lastua (hunchentoot:user-agent))
+;  (setf lastip (hunchentoot:real-remote-addr))
+;  (setf lastrequest (hunchentoot:request-uri*))
+;  (setf lastcookie (hunchentoot:cookie-in "token"))
+;  (generate-index-page))
+
 (hunchentoot:define-easy-handler (index-page :uri "/") ()
   (setf (hunchentoot:content-type*) "html")
+  (access-management)
   (generate-index-page))
+
 
 (hunchentoot:define-easy-handler (post-page :uri "/p") (page)
   (setf (hunchentoot:content-type*) "html")
   (generate-post-page (make-url-part page)))
+;; }}}
+
 ;;; }}}
