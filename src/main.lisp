@@ -119,17 +119,15 @@
               (log-db cookie ip
                       (format-utc-date now-time)
                       useragent request adminp)
-              (give-visit-cookie ip now-time useragent)
+              (give-visit-cookie ip now-time request useragent)
               (setf *run* 1)))
           ((cookiep-db cookie)
            (log-db cookie ip
                    (format-utc-date now-time)
                    useragent request adminp)))))
 
-(defparameter *run?* nil)
-
 ; Give Visit Cookie
-(defun give-visit-cookie (ip now-time useragent)
+(defun give-visit-cookie (ip now-time request useragent)
   (let ((cookie (concatenate 'string
                              (write-to-string now-time)
                              (write-to-string (random 100000000000000))))
@@ -142,7 +140,7 @@
             useragent request adminp)))
 
 ; Give Admin Cookie
-(defun give-admin-cookie (ip now-time useragent)
+(defun give-admin-cookie (ip now-time request useragent)
   (let ((cookie (concatenate 'string
                              (write-to-string now-time)
                              (write-to-string (random 100000000000000))))
