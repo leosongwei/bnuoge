@@ -4,19 +4,7 @@
     <title><!-- TMPL_VAR blog-name --></title>
   </head>
   <body>
-    <div id="navy-panel">
-      <h1 id="blog-name"><a href="/"><!-- TMPL_VAR blog-name --></a></h1>
-      <ul id="recent-article">
-        <!-- TMPL_LOOP recent-article -->
-        <li><a href="/p?page=<!-- TMPL_VAR url -->"><!-- TMPL_VAR title-cut --></a></li>
-        <!-- /TMPL_LOOP -->
-      </ul>
-      <ul id="recent-reply">
-        <!-- TMPL_LOOP recent-reply -->
-        <li><!-- TMPL_VAR name -->:<!-- TMPL_VAR body-cut --></li>
-        <!-- /TMPL_LOOP -->
-      </ul>
-    </div>
+    <!-- TMPL_VAR navy-panel -->
 
     <div id="content">
       <div id="article">

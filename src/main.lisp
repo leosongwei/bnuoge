@@ -212,28 +212,26 @@
 
 (defun generate-index-page ()
   (with-output-to-string (stream)
-     (html-template:fill-and-print-template
-       #P"index.tmpl"
-       (list :blog-name *blog-name*
-             :recent-article (get-recent-articles)
-             :recent-reply (get-recent-replys)
-             :article-list (get-article-list))
-     :stream stream)))
+    (let ((html-template:*string-modifier* #'identity))
+      (html-template:fill-and-print-template
+        #P"index.tmpl"
+        (list :navy-panel (generate-navy-panel)
+              :article-list (get-article-list))
+        :stream stream))))
 
 (defun generate-post-page (url)
   (with-output-to-string (stream)
-    (html-template:fill-and-print-template
-      #P"post.tmpl"
-      (let ((article (fill-article-struct (get-article-url-db url))))
-        (list :blog-name *blog-name*
-              :recent-article (get-recent-articles)
-              :recent-reply (get-recent-replys)
-              :article-title (article-title article)
-              :article-body (article-body article)
-              :article-date (get-yy-mm-dd-date (article-date article))
-              :article-time (get-hh-mm-ss-time (article-date article))
-              :reply-list (get-reply-list (get-aid-with-url url))))
-      :stream stream)))
+    (let ((html-template:*string-modifier* #'identity))
+      (html-template:fill-and-print-template
+        #P"post.tmpl"
+        (let ((article (fill-article-struct (get-article-url-db url))))
+          (list :navy-panel (generate-navy-panel)
+                :article-title (article-title article)
+                :article-body (article-body article)
+                :article-date (get-yy-mm-dd-date (article-date article))
+                :article-time (get-hh-mm-ss-time (article-date article))
+                :reply-list (get-reply-list (get-aid-with-url url))))
+        :stream stream))))
 
 ;;; }}}
 
